@@ -1,0 +1,1 @@
+var OpenWeatherAPIKey = config.OpenWeatherAPIKey;
