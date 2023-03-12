@@ -50,9 +50,24 @@ $("button").on("click", function () {
       url: queryForecastURL,
       method: "GET",
     }).then(function (forecastResponse) {
-      // 6) The necessary weather elements for a 5 day weather are in `forecastResponse.list`. Need to figure out a way
+      // 6) The necessary weather elements for a 5 day weather are in `forecastResponse.list`. Need to figure out a way to limit/filter these to just a one per day weather forecast.
       //   console.log("forecastResponse ===>", forecastResponse);
-      console.log("forecastResponse.list ===>", forecastResponse.list);
+      //   console.log("forecastResponse.list ===>", forecastResponse.list);
+
+      var forecast5Days = [];
+
+      // Since the API calls returns 5 days of results spread across 3 hour intervals, the very first result can be used as a guide. Hours are displayed in the 24 hour format, so these will not repeat. Following that logic, if we grab/filter all the results in `forecastResponse.list` that have the same time as that first result, we will get 5 days of forecast to display. We can achieve this by targeting the response fields that holds the date and time, `dt_txt`.
+      var forecastStart = forecastResponse.list[0].dt_txt.split(" ")[1];
+      //  console.log("forecastStart ===>", forecastStart);
+
+      for (let i = 0; i < forecastResponse.list.length; i++) {
+        // If the time we are currently looking at matches that very first result we saved, then we want to save that whole object in our forecast5dDays array.
+        if (forecastResponse.list[i].dt_txt.split(" ")[1] === forecastStart) {
+          forecast5Days.push(forecastResponse.list[i]);
+        }
+      }
+
+      console.log("forecast5Days ===>", forecast5Days);
     });
   });
 });
