@@ -1,120 +1,120 @@
-// Since in order to use the 5 day weather forecast API call I need the correct latitude and longitude coordinates, I first need to make use of the Geocoding API (https://openweathermap.org/api/geocoding-api) to obtain those.
-function getLocationCoordinates(city) {
-  // If the user simply hits "Enter" or clicks "Search" (without entering any text) they need to be prompted to complete the necessary field.
-  if (city === "")
-    alert("Sorry, city name cannot be empty. Care to try again?");
-  else
-    return `http://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=${defaultLimit}&appid=${OpenWeatherAPIKey}`;
-}
-
-// Once coordinates have been obtained, they can be used in our main API call, the 5 day weather forecast (https://openweathermap.org/forecast5).
-// (Since the mock-up for the challenge showed the temperature in Celsius, I adjusted my API call so that I can get the correct units of measure from the get-go.)
-function getLocationForecast(latitude, longitude) {
-  return `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${OpenWeatherAPIKey}&units=metric`;
-}
-
-// The values below (===>) are query parameters, will need them to compose the query URL(s) to the OpenWeatherAPI.
-
-// ===> API Key.
+// API Key that needs to be passed into the URL in the ajax call(s).
 var OpenWeatherAPIKey = config.OpenWeatherAPIKey;
 
-// ===> User input for location (becomes "city" in the getLocationCoordinates() function).
-var userCitySelection = $("#search-input");
+var OpenWeatherDateFormat = "YYYY-MM-DD HH:mm:ss";
 
-// ===> Number of locations in response.
+// Number of locations in response.
 var defaultLimit = 1;
 
-// Will need these later on, to append/style the API results.
-var weatherToday = $("#today");
-var weather5DayForecast = $("#forecast");
+function filterForecast(list) {
+  // Since the API call (https://openweathermap.org/forecast5) returns 5 days of results spread across 3 hour intervals, the very first result can be used as a guide. Hours are displayed in the 24 hour format, so these will not repeat. Following that logic, can filter all the results in the API response that have the same time as that first result, which will get me 5 days worth of weather forecast to display. Can achieve this by targeting the API response field that holds the date and time, `dt_txt`.
+  var initialForecastDate = moment(list[0].dt_txt, OpenWeatherDateFormat);
 
-// Once the user enters a location and hits "Enter" or clicks "Search", this will trigger a request to the OpenWeather API.
-$("button").on("click", function () {
-  event.preventDefault();
+  var forecastDates = [];
 
-  // 1) Name of the city the user has typed in.
-  var city = userCitySelection.val();
+  for (let i = 0; i < 6; i++) {
+    forecastDates.push(
+      // `.clone()` (https://momentjscom.readthedocs.io/en/latest/moment/01-parsing/12-moment-clone/) needs to be used to avoid mutating the date.
+      initialForecastDate.clone().add(i, "days").format(OpenWeatherDateFormat)
+    );
+  }
 
-  // 2) Use this value in the helper function that computes the necessary variables into a query URL.
-  var queryCoordinatesURL = getLocationCoordinates(city);
+  // If the dates saved in `forecastDates` are found in the filter that runs through the API response (list), then save the corresponding weather object into the result array.
+  var result = list.filter(function (forecast) {
+    return forecastDates.includes(forecast.dt_txt);
+  });
+
+  if (result.length < 6) {
+    result.push(list[list.length - 1]);
+  }
+
+  console.log("result (6 day forecast, all response fields) ===>", result);
+  return result;
+}
+
+// Dynamically creating an objet with just the handful of response fields that need to be displayed.
+function forecastDetails(list) {
+  return list.map(function (forecast) {
+    return {
+      date: moment(forecast.dt_txt, OpenWeatherDateFormat).format("DD/M/YYYY"),
+      // https://openweathermap.org/weather-conditions
+      icon: `https://openweathermap.org/img/wn/${forecast.weather[0].icon}.png`,
+      temperature: forecast.main.temp,
+      wind: (forecast.wind.speed * 3.6).toFixed(2),
+      humidity: forecast.main.humidity,
+    };
+  });
+}
+
+// Populating the cards with our response data.
+function cardElement(element, contents) {
+  $(element).append(
+    `<div class="card bg-secondary text-light" style="width: 18rem;">
+        <div class="card-body">
+            <h5 class="card-title">${contents.date}</h5>
+                <img src="${contents.icon}" />
+                <p>Temperature: ${contents.temperature} °C</p>
+                <p>Wind: ${contents.wind} KPH</p>
+                <p>Humidity: ${contents.humidity} %</p>
+        </div>
+    </div>`
+  );
+}
+
+function dashboard(location) {
+  // If the user simply hits "Enter" or clicks "Search" (without entering any text) they need to be prompted to complete the necessary field.
+  if (location === "") {
+    throw new Error("Sorry, city name cannot be empty. Care to try again?");
+  }
 
   $.ajax({
-    // 3) Pass the query URL onto the Ajax request.
-    url: queryCoordinatesURL,
+    // Since in order to use the 5 day weather forecast API call I need the correct latitude and longitude coordinates, I first need to make use of the Geocoding API (https://openweathermap.org/api/geocoding-api) to obtain those.
+    url: `http://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=${defaultLimit}&appid=${OpenWeatherAPIKey}`,
     method: "GET",
   }).then(function (coordinatesResponse) {
-    // console.log("coordinatesResponse ===>", coordinatesResponse);
+    console.log("coordinatesResponse ===>", coordinatesResponse);
 
     // If the user types an invalid location, they need to be prompted to re-type the city name. We know this will be an invalid location when our coordinatesResponse comes back as an empty array.
     if (!coordinatesResponse.length) {
-      alert("Sorry, unable to find selected location. Care to try again?");
+      // !!! Currently not working.
+      throw new Error(
+        "Sorry, unable to find selected location. Care to try again?"
+      );
     } else {
+      // Using the first available values.
       var latitude = coordinatesResponse[0].lat;
       var longitude = coordinatesResponse[0].lon;
 
-      // 4) Use the results from the previous step (latitude and longitude) to construct the next query URL, as these values where needed as variables there too.
-      var queryForecastURL = getLocationForecast(latitude, longitude);
+      $.ajax({
+        // Once coordinates have been obtained, they can be used in our main API call, the 5 day weather forecast (https://openweathermap.org/forecast5).
+        // (Since the mock-up for the challenge showed the temperature in Celsius, I adjusted my API call so that I can get the correct units of measure (metric) from the get-go.)
+        url: `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${OpenWeatherAPIKey}&units=metric`,
+        method: "GET",
+      }).then(function (forecastResponse) {
+        var filteredForecast = filterForecast(forecastResponse.list);
+        console.log("filtered list ===>", filteredForecast);
+
+        var details = forecastDetails(filteredForecast);
+
+        // display current weather forecast
+        cardElement("#today", details[0]);
+
+        // display 5 day weather forecast
+        for (let i = 1; i < 6; i++) {
+          cardElement("#forecast", details[i]);
+        }
+      });
     }
-
-    $.ajax({
-      // 5) As before, pass the query URL onto the Ajax request.
-      url: queryForecastURL,
-      method: "GET",
-    }).then(function (forecastResponse) {
-      // 6) The necessary weather elements for a 5 day weather are in `forecastResponse.list`. Need to figure out a way to limit/filter these to just a one per day weather forecast.
-      //   console.log("forecastResponse ===>", forecastResponse);
-      // console.log("forecastResponse.list ===>", forecastResponse.list);
-
-      var forecast5Days = [];
-
-      // Since the API calls returns 5 days of results spread across 3 hour intervals, the very first result can be used as a guide. Hours are displayed in the 24 hour format, so these will not repeat. Following that logic, if we grab/filter all the results in `forecastResponse.list` that have the same time as that first result, we will get 5 days of forecast to display. We can achieve this by targeting the response fields that holds the date and time, `dt_txt`.
-      var forecastStart = forecastResponse.list[0].dt_txt.split(" ")[1];
-      //  console.log("forecastStart ===>", forecastStart);
-
-      for (let i = 0; i < forecastResponse.list.length; i++) {
-        // If the time we are currently looking at matches that very first result we saved, then we want to save that whole object in our forecast5dDays array.
-        if (forecastResponse.list[i].dt_txt.split(" ")[1] === forecastStart) {
-          forecast5Days.push(forecastResponse.list[i]);
-        }
-      }
-
-      if (forecast5Days.length < 6) {
-        forecast5Days.push(
-          forecastResponse.list[forecastResponse.list.length - 1]
-        );
-      }
-
-      //   console.log("forecast5Days ===>", forecast5Days);
-
-      // Work the output so we have both a daily weather forecast and a 5 day weather forecast
-      for (let i = 0; i < forecast5Days.length; i++) {
-        // console.log("forecast5Days inside for loop ===>", forecast5Days);
-
-        // Format date into the appropriate format.
-        var forecastResponseDate = forecast5Days[i].dt_txt.split(" ")[0];
-        var formattedDate = moment(forecastResponseDate).format("DD/MM/YYYY");
-
-        // Convert wind speed from m/s to km/h
-        var windSpeedInKPH = (
-          (forecast5Days[i].wind.speed * 3600) /
-          1000
-        ).toFixed(2);
-
-        if (i === 0) {
-          // display current day weather on page
-          var currentDayForecast = $("<p>").text(
-            `${forecastResponse.city.name} (${formattedDate}), ${forecast5Days[i].weather[0].icon}, Temperature: ${forecast5Days[i].main.temp} °C, Wind: ${windSpeedInKPH} KPH, Humidity: ${forecast5Days[i].main.humidity}%`
-          );
-
-          weatherToday.append(currentDayForecast);
-        } else {
-          // display 5 day weather forecast on page
-          var weekForecast = $("<p>").text(
-            `${formattedDate}, ${forecast5Days[i].weather[0].icon}, Temperature: ${forecast5Days[i].main.temp} °C, Wind: ${windSpeedInKPH} KPH, Humidity: ${forecast5Days[i].main.humidity}%`
-          );
-          weather5DayForecast.append(weekForecast);
-        }
-      }
-    });
   });
+}
+
+// Once the user enters a location and hits "Enter" or clicks "Search", this will trigger the dashboard function, which will trigger the necessary requests to the OpenWeather API.
+$("button").on("click", function () {
+  event.preventDefault();
+
+  // Name of the city the user has typed in.
+  var userCitySelection = $("#search-input");
+  var location = userCitySelection.val();
+
+  dashboard(location);
 });
