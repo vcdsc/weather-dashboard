@@ -11,6 +11,9 @@ $("#search-button").addClass("btn-dark");
 // Will need this later to display city name in jumbotron.
 var displayLocation;
 
+// Will need this later to display list of previously searched city names.
+var previouslySearchedLocations = [];
+
 function filterForecast(list) {
   // Since the API call (https://openweathermap.org/forecast5) returns 5 days of results spread across 3 hour intervals, the very first result can be used as a guide. Hours are displayed in the 24 hour format, so these will not repeat. Following that logic, can filter all the results in the API response that have the same time as that first result, which will get me (on a best case scenario) 5 days worth of weather forecast to display. Can achieve this by targeting the API response field that holds the date and time, `dt_txt`.
   var initialForecastDate = moment(list[0].dt_txt, OpenWeatherDateFormat);
@@ -146,6 +149,13 @@ function dashboard(location) {
   });
 }
 
+function storeLocationSearch() {
+  localStorage.setItem(
+    "previouslySearchedLocations",
+    JSON.stringify(previouslySearchedLocations)
+  );
+}
+
 // Once the user enters a location and hits "Enter" or clicks "Search", this will trigger the dashboard function, which will trigger the necessary requests to the OpenWeather API.
 $("button").on("click", function () {
   event.preventDefault();
@@ -155,4 +165,10 @@ $("button").on("click", function () {
   var location = userCitySelection.val();
 
   dashboard(location);
+  clearPreviousSearch();
 });
+
+function clearPreviousSearch() {
+  $("#today").children().remove();
+  $("#forecast").children().remove();
+}
