@@ -1,17 +1,15 @@
-// API Key that needs to be passed into the URL in the ajax call(s).
-var OpenWeatherAPIKey = config.OpenWeatherAPIKey;
+// API Key that needs to be passed into the URL in the Ajax call(s).
+var OpenWeatherAPIKey = "ed320415cc1a7ad2e359b81491451379";
 
 var OpenWeatherDateFormat = "YYYY-MM-DD HH:mm:ss";
 
-// Number of locations in response.
+// Number of locations in API response.
 var defaultLimit = 1;
-
-$("#search-button").addClass("btn-dark");
 
 // Will need this later to display city name in jumbotron.
 var displayLocation;
 
-// Will need this later to display list of previously searched city names.
+// Will need this later to display list of previously searched city names (localStorage).
 var previouslySearchedLocations = [];
 
 function filterForecast(list) {
@@ -27,13 +25,13 @@ function filterForecast(list) {
     );
   }
 
-  // If the dates saved in the `forecastDates` array are found in the filter that runs through the API response (list), then save the corresponding weather object into the `result` array.
+  // If the dates saved in the `forecastDates` array are found in the filter that runs through the API response, then save the corresponding weather object into the `result` array.
   var result = list.filter(function (forecast) {
     return forecastDates.includes(forecast.dt_txt);
   });
 
   if (result.length < 6) {
-    // In the event that the hour we are using as a guide does not yeld 6 (daily and 5 day forecast) results, go get the last available result(s) to complete the `result` array.
+    // In the event that the hour we are using as a guide does not yeld 6 results (current and 5 day weather forecast), go get the last available item(s) to complete the `result` array.
     result.push(list[list.length - 1]);
   }
 
@@ -58,22 +56,22 @@ function forecastDetails(list) {
 // Populating the jumbotron with current weather forecast.
 function jumbotronElement(element, contents) {
   $(element).append(`
-  <div class="jumbotron">
-    <h1 class="display-6"> (${contents.date})<img src="${contents.icon}" /></h1>
-      <br>
-        <p>Temperature: ${contents.temperature} °C</p>
-        <p>Wind: ${contents.wind} KPH</p>
-        <p>Humidity: ${contents.humidity} %</p>
+  <div class="jumbotron jumbotron-fluid">
+    <div class="container ml-3">
+      <h1 class="display-6">${displayLocation} (${contents.date})<img src="${contents.icon}" /></h1>
+        <br>
+          <p>Temperature: ${contents.temperature} °C</p>
+          <p>Wind: ${contents.wind} KPH</p>
+          <p>Humidity: ${contents.humidity} %</p>
+    </div>
   </div>
   `);
-
-  $(".display-6").prepend(`${displayLocation}`);
 }
 
-// Populating the cards with the 5 day forecast.
+// Populating the cards with 5 day forecast.
 function cardElement(element, contents) {
   $(element).append(`
-  <div class="col">
+  <div class="col px-1">
     <div class="card bg-secondary text-light">
       <div class="card-body">
         <h6 class="card-title">${contents.date}<img src="${contents.icon}" /></h6>
@@ -86,77 +84,95 @@ function cardElement(element, contents) {
     `);
 }
 
-function dashboard(location) {
-  // If the user simply hits "Enter" or clicks "Search" (without entering any text) they need to be prompted to complete the necessary field.
-  if (location === "") {
-    // !!! Currently only logging in browser console.
-    throw new Error("Sorry, city name cannot be empty. Care to try again?");
-  }
+// Main function, makes use of the OpenWeather API calls and this is where I am handling the responses/errors.
+function locationForecast(location, addToSearchHistory) {
+  clearPreviousSearch();
 
   $.ajax({
-    // Since in order to use the 5 day weather forecast API call I need the correct latitude and longitude coordinates, I first need to make use of the Geocoding API (https://openweathermap.org/api/geocoding-api) to obtain those.
-    url: `http://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=${defaultLimit}&appid=${OpenWeatherAPIKey}`,
+    // Since in order to use the 5 day weather forecast API call I need the correct latitude and longitude coordinates, first need to make use of the Geocoding API (https://openweathermap.org/api/geocoding-api) to obtain those.
+    url: `https://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=${defaultLimit}&appid=${OpenWeatherAPIKey}`,
     method: "GET",
-  }).then(function (coordinatesResponse) {
-    // console.log("coordinatesResponse ===>", coordinatesResponse);
+  })
+    .then(function (coordinatesResponse) {
+      // If the user types an invalid location, they need to be prompted to re-type the city name. We know this will be an invalid location when our `coordinatesResponse` comes back as an empty array.
+      if (coordinatesResponse.length === 0) {
+        throw new Error(
+          "Sorry, unable to find selected city. Care to try again?"
+        );
+      } else {
+        // Using the first available values.
+        var latitude = coordinatesResponse[0].lat;
+        var longitude = coordinatesResponse[0].lon;
 
-    // If the user types an invalid location, they need to be prompted to re-type the city name. We know this will be an invalid location when our coordinatesResponse comes back as an empty array.
-    if (!coordinatesResponse.length) {
-      // !!! Currently not working.
-      throw new Error(
-        "Sorry, unable to find selected location. Care to try again?"
-      );
-    } else {
-      // Using the first available values.
-      var latitude = coordinatesResponse[0].lat;
-      var longitude = coordinatesResponse[0].lon;
+        $.ajax({
+          // Once coordinates have been obtained, they can be used in our main API call, the 5 day weather forecast (https://openweathermap.org/forecast5).
+          // (Since the mock-up for the challenge showed the temperature in Celsius, I adjusted my API call so that I can get the correct units of measure (metric) from the get-go.)
+          url: `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${OpenWeatherAPIKey}&units=metric`,
+          method: "GET",
+        }).then(function (forecastResponse) {
+          // console.log(
+          //   "forecastResponse ===>",
+          //   forecastResponse);
 
-      $.ajax({
-        // Once coordinates have been obtained, they can be used in our main API call, the 5 day weather forecast (https://openweathermap.org/forecast5).
-        // (Since the mock-up for the challenge showed the temperature in Celsius, I adjusted my API call so that I can get the correct units of measure (metric) from the get-go.)
-        url: `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${OpenWeatherAPIKey}&units=metric`,
-        method: "GET",
-      }).then(function (forecastResponse) {
-        // console.log(
-        //   "forecastResponse ===>",
-        //   forecastResponse);
+          // To be displayed in jumbotron.
+          displayLocation = forecastResponse.city.name;
 
-        displayLocation = forecastResponse.city.name;
+          var filteredForecast = filterForecast(forecastResponse.list);
+          // console.log("filtered list ===>", filteredForecast);
 
-        var filteredForecast = filterForecast(forecastResponse.list);
-        // console.log("filtered list ===>", filteredForecast);
+          var details = forecastDetails(filteredForecast);
+          // console.log("details ===>", details);
 
-        var details = forecastDetails(filteredForecast);
-        // console.log("details ===>", details);
-
-        $("#forecast").append(`
-        <div class="container">
-          <h2>5 Day Forecast</h2>
-            <div class="row">
-            </div>
-        </div>
+          // Needs to sit outside of the loop below because unlike the `col` and `card` elements, I only want to generate these once.
+          $("#forecast").append(`
+          <div class="container-fluid">
+            <h2>5 Day Forecast</h2>
+              <div class="row mx-0">
+              </div>
+          </div>
           `);
 
-        // display current weather forecast
-        jumbotronElement("#today", details[0]);
+          // Display current weather forecast.
+          jumbotronElement("#today", details[0]);
 
-        // display 5 day weather forecast
-        for (let i = 1; i < 6; i++) {
-          cardElement("#forecast", details[i]);
-        }
-      });
-    }
-  });
+          // Display 5 day weather forecast.
+          for (let i = 1; i < 6; i++) {
+            cardElement("#forecast", details[i]);
+          }
+
+          // Due to true/false flags placed in certain points in the code if `addToSearchHistory` evaluates to true then we are saving the current location to localStorage and rendering that location in a button.
+          if (addToSearchHistory) {
+            addToPreviouslySearchedLocations();
+            renderLocationButtons();
+          }
+        });
+      }
+    })
+    .fail(errorMessage);
+}
+
+// Allows to handle no input/incorrect input scenarios.
+function errorMessage(message) {
+  $("#starter").prepend(`
+    <div class="container-fluid" style="max-width: 1400px">
+      <div class="row">
+        <div class="col">
+          <div id="error" class="error">${message}
+          </div>
+        </div>
+      </div>
+    </div>
+    `);
+
+  // $("#error").html(`<p>${message}</p>`);
+  $("#error").show("slow").delay(2000).hide("slow");
 }
 
 function storeLocationSearch() {
-  localStorage.setItem(
-    "previouslySearchedLocations",
-    JSON.stringify(previouslySearchedLocations)
-  );
+  localStorage.setItem("location", JSON.stringify(location));
 }
 
-// Once the user enters a location and hits "Enter" or clicks "Search", this will trigger the dashboard function, which will trigger the necessary requests to the OpenWeather API.
+// Once the user enters a location and hits "Enter" or clicks "Search", this will trigger the `locationForecast` function, which will trigger the necessary requests to the OpenWeather API.
 $("button").on("click", function () {
   event.preventDefault();
 
@@ -164,11 +180,70 @@ $("button").on("click", function () {
   var userCitySelection = $("#search-input");
   var location = userCitySelection.val();
 
-  dashboard(location);
-  clearPreviousSearch();
+  // If the user simply hits "Enter" or clicks "Search" (without entering any text) they need to be prompted to complete the necessary field.
+  if (location === "") {
+    errorMessage("Sorry, city name cannot be empty. Care to try again?");
+
+    return;
+  }
+
+  locationForecast(location, true);
 });
 
+// Clear search results in between each search.
 function clearPreviousSearch() {
   $("#today").children().remove();
   $("#forecast").children().remove();
 }
+
+function storeLocation() {
+  localStorage.setItem(
+    "previouslySearchedLocations",
+    JSON.stringify(previouslySearchedLocations)
+  );
+}
+
+function loadPreviouslySearchedLocations() {
+  var storedLocations =
+    JSON.parse(localStorage.getItem("previouslySearchedLocations")) || [];
+
+  if (storedLocations !== null) {
+    previouslySearchedLocations = storedLocations;
+  }
+}
+
+function addToPreviouslySearchedLocations() {
+  let searchedLocation = $("#search-input").val();
+
+  if (!searchedLocation) {
+    return;
+  }
+
+  previouslySearchedLocations.unshift(`${searchedLocation}`);
+  previouslySearchedLocations.splice(5);
+  storeLocation();
+}
+
+// Dynamically renders a location button for each previous location search.
+function renderLocationButtons() {
+  $("#history").empty();
+
+  for (let i = 0; i < previouslySearchedLocations.length; i++) {
+    let location = previouslySearchedLocations[i];
+
+    let btn = $("<button>");
+    btn.addClass("location btn btn-secondary mb-2");
+    btn.attr("data-name", location);
+    btn.click(() => locationForecast(location, false));
+    btn.text(location.charAt(0).toUpperCase() + location.slice(1));
+    $("#history").append(btn);
+  }
+}
+
+// Triggers main functionality.
+function loadWeatherForecast() {
+  loadPreviouslySearchedLocations();
+  renderLocationButtons();
+}
+
+loadWeatherForecast();
