@@ -1,8 +1,21 @@
+@import url("https://fonts.googleapis.com/css2?family=Sono:wght@200;600&display=swap");
+
+* {
+  font-family: "Sono", sans-serif;
+}
+
 .jumbotron {
   background: none;
   border: solid 1px black;
 }
 
-p {
-  font-size: small;
+.error {
+  border: 1px solid;
+  margin: 10px 0px;
+  padding: 15px 10px 15px 50px;
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  color: #d8000c;
+  background-color: #ffbaba;
+  display: none;
 }
